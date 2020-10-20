@@ -12,10 +12,12 @@ import (
 var (
 	listenAddr     = flag.String("listenAddr", "", "address to listen on")
 	wildcardAnswer = flag.String("wildcard", "", "wildcard response")
+	ntp            = flag.String("ntp", "", "set domains with *ntp* to provided IP")
 )
 
 var domainsToAddresses map[string]string = map[string]string{
-	"google.com.": "1.2.3.4",
+	"google.com.":   "1.2.3.4",
+	"pool.ntp.org.": "192.168.2.1",
 }
 
 type handler struct{}
@@ -43,14 +45,22 @@ func (h *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			})
 			log.Printf("DNS Request [%s] %s %s -> %s", clientIP, r.Question[0].Name, dns.TypeToString[r.Question[0].Qtype], address)
 		} else {
-			if len(*wildcardAnswer) > 0 {
+			switch {
+			case len(*ntp) > 0 && strings.Contains(r.Question[0].Name, "ntp"):
+				address := *ntp
+				msg.Answer = append(msg.Answer, &dns.A{
+					Hdr: dns.RR_Header{Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 60},
+					A:   net.ParseIP(address),
+				})
+				log.Printf("DNS NTP Request [%s] %s %s -> %s", clientIP, r.Question[0].Name, dns.TypeToString[r.Question[0].Qtype], address)
+			case len(*wildcardAnswer) > 0:
 				address := *wildcardAnswer
 				msg.Answer = append(msg.Answer, &dns.A{
 					Hdr: dns.RR_Header{Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 60},
 					A:   net.ParseIP(address),
 				})
-				log.Printf("DNS Request [%s] %s %s -> %s", clientIP, r.Question[0].Name, dns.TypeToString[r.Question[0].Qtype], address)
-			} else {
+				log.Printf("DNS Wildcard Request [%s] %s %s -> %s", clientIP, r.Question[0].Name, dns.TypeToString[r.Question[0].Qtype], address)
+			default:
 				log.Printf("DNS Request [%s] %s %s -> ???", clientIP, r.Question[0].Name, dns.TypeToString[r.Question[0].Qtype])
 			}
 		}
