@@ -57,8 +57,21 @@ func (app *appContext) DomainHandler(w http.ResponseWriter, r *http.Request) {
 	urlPath := r.URL.Path
 	filePath := path.Join(base, host, urlPath)
 
+	log.Printf("REQUEST: %s %s", r.Method, r.URL.String())
+
+	// print headers
+	log.Printf("\tHeaders: %+v", r.Header)
+
+	// fprint form
+	err := r.ParseForm()
+	if err != nil {
+		log.Fatalf("parse form err: %s", err)
+	}
+	log.Printf("\tForm: %+v", r.Form)
+
 	if !fileExists(filePath) {
 		// 404
+		log.Printf("no file: %s", filePath)
 		http.NotFoundHandler().ServeHTTP(w, r)
 		return
 	}

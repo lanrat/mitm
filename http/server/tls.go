@@ -10,6 +10,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"io/ioutil"
 	"log"
 	"math/big"
 	"net"
@@ -22,7 +23,8 @@ import (
 func getTLSConfig() *tls.Config {
 	cfg := &tls.Config{}
 	cfg.GetCertificate = getCertificateHook
-	cert := mkCert("*")
+	ca := readCA()
+	cert := mkCert("*", ca)
 	// TODO make certs generated on the fly for each request
 	cfg.Certificates = append(cfg.Certificates, cert)
 	cfg.BuildNameToCertificate()
@@ -34,7 +36,7 @@ func getCertificateHook(helloInfo *tls.ClientHelloInfo) (*tls.Certificate, error
 	return nil, nil
 }
 
-func mkCert(host string) tls.Certificate {
+func mkCert(host string, ca *x509.Certificate) tls.Certificate {
 	//host := "*"
 	var priv interface{}
 	var err error
@@ -69,7 +71,7 @@ func mkCert(host string) tls.Certificate {
 		NotAfter:  notAfter,
 
 		KeyUsage:              keyUsage,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
 	}
 	hosts := strings.Split(host, ",")
@@ -80,7 +82,14 @@ func mkCert(host string) tls.Certificate {
 			template.DNSNames = append(template.DNSNames, h)
 		}
 	}
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, publicKey(priv), priv)
+
+	// caCert := &template
+	// if ca != nil {
+	// 	log.Printf("Using CA %v", ca)
+	// 	caCert = ca.Leaf
+	// 	log.Printf("leaf %v", caCert)
+	// }
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, ca, publicKey(priv), priv)
 	if err != nil {
 		log.Fatalf("Failed to create certificate: %v", err)
 	}
@@ -95,6 +104,35 @@ func mkCert(host string) tls.Certificate {
 		log.Fatalf("Unable to make cert: %v", err)
 	}
 	return cert
+}
+
+const caKeyPath = "http/ca.key"
+const caCertPath = "http/ca.pem"
+
+func readCA() *x509.Certificate {
+	b1, err := ioutil.ReadFile(caKeyPath)
+	check(err)
+	b2, err := ioutil.ReadFile(caCertPath)
+	check(err)
+	// block, _ := pem.Decode(b)
+	// if block == nil {
+	// 	log.Fatal("pem.decode was nil for CA")
+	// // }
+	// privKey, err := x509.ParsePKCS1PrivateKey(b1)
+	// check(err)
+	// pubKey, err := x509.ParsePKCS1PublicKey(b2)
+	// check(err)
+	ca, err := tls.X509KeyPair(b2, b1)
+	check(err)
+	caCert, err := x509.ParseCertificate(ca.Certificate[0])
+	check(err)
+	return caCert
+}
+
+func check(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func publicKey(priv interface{}) interface{} {

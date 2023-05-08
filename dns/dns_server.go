@@ -16,8 +16,11 @@ var (
 )
 
 var domainsToAddresses map[string]string = map[string]string{
-	"google.com.":   "1.2.3.4",
-	"pool.ntp.org.": "192.168.2.1",
+	"google.com.":                "1.2.3.4",
+	"pool.ntp.org.":              "192.168.2.1",
+	"api.luxorone.com.":          "192.168.7.2",
+	"resident-api.luxerone.com.": "192.168.7.2",
+	"apple.com.":                 "192.168.7.2",
 }
 
 type handler struct{}
